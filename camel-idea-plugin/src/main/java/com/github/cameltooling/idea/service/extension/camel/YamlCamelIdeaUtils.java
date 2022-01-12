@@ -24,6 +24,7 @@ import com.intellij.openapi.module.Module;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
+import com.intellij.psi.util.PsiTreeUtil;
 import org.jetbrains.yaml.YAMLFileType;
 import org.jetbrains.yaml.psi.YAMLDocument;
 import org.jetbrains.yaml.psi.YAMLFile;
@@ -81,6 +82,20 @@ public class YamlCamelIdeaUtils extends CamelIdeaUtils implements CamelIdeaUtils
 
     @Override
     public boolean isCamelRouteStart(PsiElement element) {
+        /*
+        element is KeyValue and the key is "from", "rest", "route" or "routes"
+         */
+        YAMLKeyValue keyValue;
+        if (element instanceof YAMLKeyValue) {
+            keyValue = (YAMLKeyValue) element;
+        } else {
+            keyValue = PsiTreeUtil.getParentOfType(element, YAMLKeyValue.class);
+        }
+        if (keyValue != null) {
+            String name = keyValue.getKeyText();
+            return "routes".equals(name) || "rest".equals(name)
+                    || "route".equals(name) || "from".equals(name);
+        }
         return false;
     }
 
@@ -96,6 +111,20 @@ public class YamlCamelIdeaUtils extends CamelIdeaUtils implements CamelIdeaUtils
 
     @Override
     public boolean isCamelExpression(PsiElement element, String language) {
+        YAMLKeyValue keyValue;
+        if (element instanceof YAMLKeyValue) {
+            keyValue = (YAMLKeyValue) element;
+        } else {
+            keyValue = PsiTreeUtil.getParentOfType(element, YAMLKeyValue.class);
+        }
+        if (keyValue != null) {
+            String name = keyValue.getKeyText();
+            // extra check for simple language
+            if ("simple".equals(language) && "log".equals(name)) {
+                return true;
+            }
+            return language.equals(name);
+        }
         return false;
     }
 
@@ -147,16 +176,43 @@ public class YamlCamelIdeaUtils extends CamelIdeaUtils implements CamelIdeaUtils
 
     @Override
     public List<PsiElement> findEndpointUsages(Module module, Predicate<String> uriCondition) {
-        return Collections.EMPTY_LIST;
+        return findEndpoints(module, uriCondition, e -> !isCamelRouteStart(e));
     }
 
     @Override
     public List<PsiElement> findEndpointDeclarations(Module module, Predicate<String> uriCondition) {
-        return Collections.EMPTY_LIST;
+        return findEndpoints(module, uriCondition, this::isCamelRouteStart);
     }
 
     @Override
     public boolean isPlaceForEndpointUri(PsiElement location) {
         return false;
+    }
+
+    private List<PsiElement> findEndpoints(Module module, Predicate<String> uriCondition, Predicate<YAMLKeyValue> tagCondition) {
+        return Collections.EMPTY_LIST;
+/*
+        Predicate<YAMLKeyValue> endpointMatcher =
+                ((Predicate<YAMLKeyValue>)this::isEndpointUriValue)
+                        .and(e -> parentTagMatches(e, tagCondition))
+                        .and(e -> uriCondition.test(e.getValue()));
+
+        List<PsiElement> endpointDeclarations = new ArrayList<>();
+        IdeaUtils.getService().iterateXmlDocumentRoots(module, root -> {
+            if (isAcceptedNamespace(root.getNamespace())) {
+                IdeaUtils.getService().iterateXmlNodes(root, XmlAttributeValue.class, value -> {
+                    if (endpointMatcher.test(value)) {
+                        endpointDeclarations.add(value);
+                    }
+                    return true;
+                });
+            }
+        });
+        return endpointDeclarations;
+*/
+    }
+
+    private boolean isEndpointUriValue(YAMLKeyValue endpointUriValue) {
+        return endpointUriValue != null && "uri".equals(endpointUriValue.getKeyText());
     }
 }
