@@ -33,9 +33,9 @@ import org.jetbrains.yaml.psi.YAMLSequence;
 import org.jetbrains.yaml.psi.YAMLSequenceItem;
 import org.jetbrains.yaml.psi.YAMLValue;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -190,14 +190,14 @@ public class YamlCamelIdeaUtils extends CamelIdeaUtils implements CamelIdeaUtils
     }
 
     private List<PsiElement> findEndpoints(Module module, Predicate<String> uriCondition, Predicate<YAMLKeyValue> tagCondition) {
-        return Collections.EMPTY_LIST;
-/*
         Predicate<YAMLKeyValue> endpointMatcher =
                 ((Predicate<YAMLKeyValue>)this::isEndpointUriValue)
                         .and(e -> parentTagMatches(e, tagCondition))
-                        .and(e -> uriCondition.test(e.getValue()));
+                        .and(e -> uriCondition.test(e.getValueText()));
 
         List<PsiElement> endpointDeclarations = new ArrayList<>();
+
+        /*
         IdeaUtils.getService().iterateXmlDocumentRoots(module, root -> {
             if (isAcceptedNamespace(root.getNamespace())) {
                 IdeaUtils.getService().iterateXmlNodes(root, XmlAttributeValue.class, value -> {
@@ -207,12 +207,17 @@ public class YamlCamelIdeaUtils extends CamelIdeaUtils implements CamelIdeaUtils
                     return true;
                 });
             }
-        });
+        });*/
+
         return endpointDeclarations;
-*/
     }
 
     private boolean isEndpointUriValue(YAMLKeyValue endpointUriValue) {
         return endpointUriValue != null && "uri".equals(endpointUriValue.getKeyText());
+    }
+
+    private boolean parentTagMatches(PsiElement element, Predicate<YAMLKeyValue> parentTagCondition) {
+        YAMLKeyValue keyValue = PsiTreeUtil.getParentOfType(element, YAMLKeyValue.class);
+        return keyValue != null && parentTagCondition.test(keyValue);
     }
 }
