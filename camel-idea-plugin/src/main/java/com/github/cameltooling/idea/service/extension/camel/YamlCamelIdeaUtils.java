@@ -17,6 +17,7 @@
 package com.github.cameltooling.idea.service.extension.camel;
 
 import com.github.cameltooling.idea.extension.CamelIdeaUtilsExtension;
+import com.github.cameltooling.idea.util.IdeaUtils;
 import com.intellij.ide.plugins.IdeaPluginDescriptor;
 import com.intellij.ide.plugins.PluginManagerCore;
 import com.intellij.openapi.extensions.PluginId;
@@ -48,6 +49,13 @@ public class YamlCamelIdeaUtils extends CamelIdeaUtils implements CamelIdeaUtils
             "route",
             "routeConfiguration"
         });
+
+    private static final List<String> YAML_ENDPOINT_KEYS = Arrays.asList(
+            new String[] {
+                    "to",
+                    "toD",
+                    "uri"
+            });
 
     @Override
     public boolean isCamelFile(PsiFile file) {
@@ -135,11 +143,36 @@ public class YamlCamelIdeaUtils extends CamelIdeaUtils implements CamelIdeaUtils
 
     @Override
     public boolean isConsumerEndpoint(PsiElement element) {
+        YAMLKeyValue keyValue;
+        if (element instanceof YAMLKeyValue) {
+            keyValue = (YAMLKeyValue) element;
+        } else {
+            keyValue = PsiTreeUtil.getParentOfType(element, YAMLKeyValue.class);
+        }
+        if (keyValue != null) {
+            String name = keyValue.getKeyText();
+            YAMLKeyValue parent = PsiTreeUtil.getParentOfType(keyValue, YAMLKeyValue.class);
+            String parentName = parent != null ? parent.getKeyText() : null;
+            return "uri".equals(name) && ("from".equals(parentName) || "interceptFrom".equals(parentName));
+        }
         return false;
     }
 
     @Override
     public boolean isProducerEndpoint(PsiElement element) {
+        YAMLKeyValue keyValue;
+        if (element instanceof YAMLKeyValue) {
+            keyValue = (YAMLKeyValue) element;
+        } else {
+            keyValue = PsiTreeUtil.getParentOfType(element, YAMLKeyValue.class);
+        }
+        if (keyValue != null) {
+            String name = keyValue.getKeyText();
+            return "to".equals(name) || "toD".equals(name);
+//                return getIdeaUtils().hasParentXmlTag(xml, "enrich")
+//                        || getIdeaUtils().isFromXmlTag(xml, "to", "interceptSendToEndpoint", "wireTap", "deadLetterChannel");
+//            }
+        }
         return false;
     }
 
@@ -155,7 +188,7 @@ public class YamlCamelIdeaUtils extends CamelIdeaUtils implements CamelIdeaUtils
 
     @Override
     public boolean acceptForAnnotatorOrInspection(PsiElement element) {
-        return false;
+        return true;
     }
 
     @Override
@@ -186,6 +219,11 @@ public class YamlCamelIdeaUtils extends CamelIdeaUtils implements CamelIdeaUtils
 
     @Override
     public boolean isPlaceForEndpointUri(PsiElement location) {
+        YAMLKeyValue parent = PsiTreeUtil.getParentOfType(location, YAMLKeyValue.class);
+        if (parent != null) {
+            String key = parent.getKeyText();
+            return YAML_ENDPOINT_KEYS.contains(key);
+        }
         return false;
     }
 
@@ -196,6 +234,14 @@ public class YamlCamelIdeaUtils extends CamelIdeaUtils implements CamelIdeaUtils
                         .and(e -> uriCondition.test(e.getValueText()));
 
         List<PsiElement> endpointDeclarations = new ArrayList<>();
+        IdeaUtils.getService().iterateYamlDocumentRoots(module, root -> {
+            IdeaUtils.getService().iterateYamlKeyValues(root, YAMLKeyValue.class, value -> {
+                if (endpointMatcher.test(value)) {
+                    endpointDeclarations.add(value);
+                }
+                return true;
+            });
+        });
 
         /*
         IdeaUtils.getService().iterateXmlDocumentRoots(module, root -> {
@@ -213,7 +259,7 @@ public class YamlCamelIdeaUtils extends CamelIdeaUtils implements CamelIdeaUtils
     }
 
     private boolean isEndpointUriValue(YAMLKeyValue endpointUriValue) {
-        return endpointUriValue != null && "uri".equals(endpointUriValue.getKeyText());
+        return endpointUriValue != null && YAML_ENDPOINT_KEYS.contains(endpointUriValue.getKeyText());
     }
 
     private boolean parentTagMatches(PsiElement element, Predicate<YAMLKeyValue> parentTagCondition) {

@@ -63,10 +63,14 @@ import com.intellij.xdebugger.XSourcePosition;
 import com.intellij.xml.util.XmlUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.yaml.YAMLFileType;
+import org.jetbrains.yaml.psi.YAMLDocument;
+import org.jetbrains.yaml.psi.YAMLFile;
 import org.jetbrains.yaml.psi.YAMLKeyValue;
 import org.jetbrains.yaml.psi.YAMLMapping;
 import org.jetbrains.yaml.psi.YAMLSequence;
 import org.jetbrains.yaml.psi.YAMLSequenceItem;
+import org.jetbrains.yaml.psi.YAMLValue;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -403,6 +407,44 @@ public final class IdeaUtils implements Disposable {
         });
     }
 
+    public void iterateYamlDocumentRoots(Module module, Consumer<YAMLKeyValue> rootTag) {
+        final GlobalSearchScope moduleScope = module.getModuleContentScope();
+        final GlobalSearchScope yamlFiles = GlobalSearchScope.getScopeRestrictedByFileTypes(moduleScope, YAMLFileType.YML);
+
+        ModuleFileIndex fileIndex = ModuleRootManager.getInstance(module).getFileIndex();
+        fileIndex.iterateContent(f -> {
+            if (yamlFiles.contains(f)) {
+                PsiFile file = PsiManager.getInstance(module.getProject()).findFile(f);
+                if (file instanceof YAMLFile) {
+                    YAMLFile yamlFile = (YAMLFile) file;
+                    List<YAMLDocument> yamlDocuments = yamlFile.getDocuments();
+                    for (YAMLDocument document : yamlDocuments) {
+                        YAMLValue value = document.getTopLevelValue();
+                        if (!(value instanceof YAMLSequence)) {
+                            return false;
+                        }
+                        YAMLSequence sequence = (YAMLSequence) value;
+                        List<YAMLSequenceItem> sequenceItems = sequence.getItems();
+                        if (sequenceItems.isEmpty()) {
+                            return false;
+                        }
+                        YAMLSequenceItem firstItem = sequenceItems.get(0);
+                        Collection<YAMLKeyValue> keysValues = firstItem.getKeysValues();
+                        if (keysValues.isEmpty()) {
+                            return false;
+                        }
+                        YAMLKeyValue firstKeyValue = keysValues.iterator().next();
+                        if (firstKeyValue == null) {
+                            return false;
+                        }
+                        rootTag.accept(firstKeyValue);
+                    }
+                }
+            }
+            return true;
+        });
+    }
+
     @SuppressWarnings("unchecked")
     public <T> void iterateXmlNodes(XmlTag root, Class<T> nodeClass, Predicate<T> nodeProcessor) {
         XmlUtil.processXmlElementChildren(root, element -> {
@@ -411,6 +453,15 @@ public final class IdeaUtils implements Disposable {
             }
             return true;
         }, true);
+    }
+
+    public <T> void iterateYamlKeyValues(YAMLKeyValue root, Class<T> nodeClass, Predicate<T> nodeProcessor) {
+//        XmlUtil.processXmlElementChildren(root, element -> {
+//            if (nodeClass.isAssignableFrom(element.getClass())) {
+//                return nodeProcessor.test((T) element);
+//            }
+//            return true;
+//        }, true);
     }
 
     /**
