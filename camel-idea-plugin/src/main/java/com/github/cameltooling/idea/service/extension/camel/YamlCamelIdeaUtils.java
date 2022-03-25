@@ -109,7 +109,7 @@ public class YamlCamelIdeaUtils extends CamelIdeaUtils implements CamelIdeaUtils
 
     @Override
     public boolean isCamelRouteStartExpression(PsiElement element) {
-        return false;
+        return isCamelRouteStart(element);
     }
 
     @Override
